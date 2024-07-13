@@ -77,9 +77,7 @@ fn decode(content: []u8) !void {
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer {
-        if (gpa.deinit() == .leak) @panic("Memory leak!!!\n");
-    }
+    defer if (gpa.detectLeaks()) @panic("Memory leak!!!\n");
     const allocator = gpa.allocator();
     var args = try std.process.argsWithAllocator(allocator);
     defer args.deinit();
