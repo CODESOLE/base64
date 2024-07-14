@@ -38,8 +38,18 @@ fn decode(content: []u8, letters: *const [64:0]u8) !void {
     const stdout = std.io.getStdOut().writer();
     var b = std.io.bufferedWriter(stdout);
     var bw = b.writer();
+    const is_urlsafe = if (letters[63] == '/') false else true;
     while (chunk_idx < content.len) : (chunk_idx += 4) {
         const data = content[chunk_idx .. chunk_idx + 4];
+        if (is_urlsafe) {
+            for (data) |c| {
+                if (c == '/' or c == '+') @panic("Couldn't complete decoding! Conflicting decoding standart. Expected urlsafe encoding but found standard encoding.\nHint: use `base64 -d <file>`");
+            }
+        } else {
+            for (data) |c| {
+                if (c == '-' or c == '_') @panic("Couldn't complete decoding! Conflicting decoding standard. Expected standard encoding but found urlsafe encoding.\nHint: use `urlsafe=1 base64 -d <file>`");
+            }
+        }
         const l1: u8 = for (letters, 0..) |l, idx| {
             if (l == data[0]) break @truncate(idx);
         } else 0x00;
@@ -79,7 +89,7 @@ pub fn main() !void {
     const allocator = gpa.allocator();
     var env = try std.process.getEnvMap(allocator);
     defer env.deinit();
-    const is_urlsafe = if (env.get("URLSAFE")) |_| true else false;
+    const is_urlsafe = if (env.get("URLSAFE") != null or env.get("urlsafe") != null) true else false;
     const letters = blk: {
         if (is_urlsafe) {
             std.debug.print("URLSAFE defined via env var!\n", .{});
