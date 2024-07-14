@@ -13,6 +13,13 @@ Decode:
 
 `base64 -d <file>`
 
+You can select whether urlsafe or not with `urlsafe` environment variable.
+For example:
+
+With urlsafe: `urlsafe=1 base64 -e <file>`
+
+With standard: `base64 -e <file>`
+
 # LICENSE
 
 MIT
