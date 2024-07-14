@@ -1,8 +1,6 @@
 const std = @import("std");
 
-const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-
-fn encode(content: []u8) !void {
+fn encode(content: []u8, letters: *const [64:0]u8) !void {
     var chunk_idx: usize = 0;
     const stdout = std.io.getStdOut().writer();
     var b = std.io.bufferedWriter(stdout);
@@ -34,7 +32,7 @@ fn encode(content: []u8) !void {
     try b.flush();
 }
 
-fn decode(content: []u8) !void {
+fn decode(content: []u8, letters: *const [64:0]u8) !void {
     std.debug.assert(content.len % 4 == 0);
     var chunk_idx: usize = 0;
     const stdout = std.io.getStdOut().writer();
@@ -60,7 +58,7 @@ fn decode(content: []u8) !void {
 
         if (data[3] == '=' and data[2] == '=') {
             const e1: u8 = ((l1 << 2) & 0b1111_1100) | ((l2 >> 4) & 0b0000_0011);
-            try bw.print("{c}", .{ e1 });
+            try bw.print("{c}", .{e1});
         } else if (data[3] == '=' and data[2] != '=') {
             const e1: u8 = ((l1 << 2) & 0b1111_1100) | ((l2 >> 4) & 0b0000_0011);
             const e2: u8 = ((l2 << 4) & 0b1111_0000) | ((l3 >> 2) & 0b0000_1111);
@@ -79,6 +77,18 @@ pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer if (gpa.detectLeaks()) @panic("Memory leak!!!\n");
     const allocator = gpa.allocator();
+    var env = try std.process.getEnvMap(allocator);
+    defer env.deinit();
+    const is_urlsafe = if (env.get("URLSAFE")) |_| true else false;
+    const letters = blk: {
+        if (is_urlsafe) {
+            std.debug.print("URLSAFE defined via env var!\n", .{});
+            break :blk "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+        } else {
+            std.debug.print("URLSAFE NOT defined via env var!\n", .{});
+            break :blk "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+        }
+    };
     var args = try std.process.argsWithAllocator(allocator);
     defer args.deinit();
     _ = args.next(); // executable itself
@@ -91,9 +101,9 @@ pub fn main() !void {
     const content = try file.readToEndAlloc(allocator, std.math.maxInt(usize));
     defer allocator.free(content);
     if (std.mem.eql(u8, mode, "-e")) {
-        try encode(content);
+        try encode(content, letters);
     } else if (std.mem.eql(u8, mode, "-d")) {
-        try decode(content);
+        try decode(content, letters);
     } else {
         @panic("Usage: base64 [-e | -d] <file>");
     }
